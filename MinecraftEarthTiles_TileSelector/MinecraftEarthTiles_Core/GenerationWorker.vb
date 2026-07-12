@@ -3547,6 +3547,9 @@ Public Class GenerationWorker
             WriteTilesVariablesToBatch(ScriptBatchFile, Tile)
             WriteCustomTextToBatch(ScriptBatchFile, BatchFileName.ImageMagickGeneration, "Before")
 
+            'Magick flag to use GPU
+            ScriptBatchFile.WriteLine($"set MAGICK_OCL_DEVICE=TRUE")
+
             ScriptBatchFile.WriteLine($"if not exist ""%PathToScriptsFolder%\image_exports"" mkdir ""%PathToScriptsFolder%\image_exports""")
             ScriptBatchFile.WriteLine($"if not exist ""%PathToScriptsFolder%\image_exports\%Tile%"" mkdir ""%PathToScriptsFolder%\image_exports\%Tile%""")
 
