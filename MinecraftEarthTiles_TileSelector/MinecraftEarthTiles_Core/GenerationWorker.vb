@@ -3278,9 +3278,9 @@ Public Class GenerationWorker
             ScriptBatchFile.WriteLine($"if Not exist ""%PathToScriptsFolder%\image_exports\%Tile%\heightmap"" mkdir ""%PathToScriptsFolder%\image_exports\%Tile%\heightmap""")
 
             If Not ClassWorker.MyWorldSettings.generateFullEarth Then
-                ScriptBatchFile.WriteLine($"""C:\Windows\system32\xcopy.exe"" ""%PathToTempOSM%\osm\%Tile%"" ""%PathToQGISProject%\OsmData"" /Y")
+                ScriptBatchFile.WriteLine($"""C:\Windows\system32\xcopy.exe"" ""%PathToTempOSM%\osm\%Tile%"" ""%PathToQGISProject%\OsmData"" /S /Y /D")
             Else
-                ScriptBatchFile.WriteLine($"""C:\Windows\system32\xcopy.exe"" ""%PathToTempOSM%\osm\all"" ""%PathToQGISProject%\OsmData"" /Y")
+                ScriptBatchFile.WriteLine($"""C:\Windows\system32\xcopy.exe"" ""%PathToTempOSM%\osm\all"" ""%PathToQGISProject%\OsmData"" /S /Y /D")
             End If
             'open project and run script
 
@@ -3834,7 +3834,7 @@ Public Class GenerationWorker
             End If
 
             Dim depth As String = "255"
-            If ClassWorker.MyTilesSettings.version = "1.18" Or ClassWorker.MyWorldSettings.MapVersion = "1.19" Then
+            If ClassWorker.MyTilesSettings.version = "1.18" Or ClassWorker.MyWorldSettings.MapVersion = "1.19" Or ClassWorker.MyTilesSettings.version = "1.20" Then
                 depth = "319"
             End If
 
@@ -3974,7 +3974,7 @@ Public Class GenerationWorker
 
             If Not ClassWorker.MyTilesSettings.PathToMinutor = "" And ClassWorker.MyTilesSettings.minutor = True Then
                 Dim depth As String = "255"
-                If ClassWorker.MyTilesSettings.version = "1.18" Or ClassWorker.MyWorldSettings.MapVersion = "1.19" Then
+                If ClassWorker.MyTilesSettings.version = "1.18" Or ClassWorker.MyWorldSettings.MapVersion = "1.19" Or ClassWorker.MyTilesSettings.version = "1.20" Then
                     depth = "319"
                 End If
                 ScriptBatchFile.WriteLine($"""{ClassWorker.MyTilesSettings.PathToMinutor}"" --world ""{ClassWorker.MyTilesSettings.PathToExport}\{ClassWorker.MyWorldSettings.WorldName}"" --depth {depth} --savepng ""{ClassWorker.MyTilesSettings.PathToExport}\{ClassWorker.MyWorldSettings.WorldName}\{ClassWorker.MyWorldSettings.WorldName}.png""")
