@@ -3123,11 +3123,11 @@ Public Class GenerationWorker
                     rivers = "majorMany"
             End Select
             Dim waterBodies As String = "water_lakes"
-            Select Case ClassWorker.MyWorldSettings.rivers
+            Select Case ClassWorker.MyWorldSettings.waterBodies
                 Case "All"
-                    rivers = "water"
+                    waterBodies = "water"
                 Case "Major"
-                    rivers = "water_lakes"
+                    waterBodies = "water_lakes"
             End Select
             Dim customLayerString As String = "["
             ClassWorker.MyWorldSettings.custom_layers = Trim(ClassWorker.MyWorldSettings.custom_layers)
