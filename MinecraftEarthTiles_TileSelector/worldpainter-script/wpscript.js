@@ -3757,7 +3757,10 @@ if ( true ) {
 		.applyToTerrain()
 
 		.fromColour(0, 0, 0).toTerrain(4) //podzol
-		.fromColour(20, 20, 20).toTerrain(mudTerrain) //mud
+		// Near-black satellite pixels are almost always lakes. Real lakes get water from the
+		// water map further down; the ones that don't (small lakes, shadows) used to become
+		// dry mud patches. Use grass instead. Swamps and mangroves set their own mud via layers.
+		.fromColour(20, 20, 20).toTerrain(grassTerrain) //was mud
 		.fromColour(50, 60, 30).toTerrain(grassTerrain) //grass
 
 		.fromColour(0, 50, 0).toTerrain(grassTerrain) //grass
