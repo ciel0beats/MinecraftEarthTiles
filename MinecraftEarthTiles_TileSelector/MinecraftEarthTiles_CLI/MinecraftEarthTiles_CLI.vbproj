@@ -52,10 +52,6 @@
     <ApplicationIcon>MyResources\MinecraftEarthTiles.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="MinecraftEarthTiles_Core, Version=1.4.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\MinecraftEarthTiles_Core\bin\Release\MinecraftEarthTiles_Core.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
@@ -119,4 +115,10 @@
     <Resource Include="MyResources\MinecraftEarthTiles.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />
+  <ItemGroup>
+    <ProjectReference Include="..\MinecraftEarthTiles_Core\MinecraftEarthTiles_Core.vbproj">
+      <Project>{1F8E56F3-2F9F-42E0-9CE6-407E097CDAE5}</Project>
+      <Name>MinecraftEarthTiles_Core</Name>
+    </ProjectReference>
+  </ItemGroup>
 </Project>
