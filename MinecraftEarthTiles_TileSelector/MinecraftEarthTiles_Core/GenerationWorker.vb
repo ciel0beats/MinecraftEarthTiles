@@ -3490,8 +3490,10 @@ Public Class GenerationWorker
                 borderS = LatiNumber - CType(ClassWorker.MyWorldSettings.TilesPerMap, Int16) + 1
                 borderN = LatiNumber + 1
             Else
-                borderS = (-1 * LatiNumber) - CType(ClassWorker.MyWorldSettings.TilesPerMap, Int16) + 1
-                borderN = (-1 * LatiNumber)
+                ' A southern tile "S01" spans 0 to -3 (same as the QGIS images and wpscript),
+                ' so the north edge is one degree above -LatiNumber.
+                borderN = (-1 * LatiNumber) + 1
+                borderS = borderN - CType(ClassWorker.MyWorldSettings.TilesPerMap, Int16)
             End If
             If LongDir = "E" Then
                 borderW = LongNumber
