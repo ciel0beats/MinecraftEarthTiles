@@ -405,6 +405,48 @@ if ( true ) {
 		var smallTreeEvergreenLayer = wp.getLayer().fromFile(path+'wpscript/layer/jungle_bamboo_only_small.layer').go();
 	}
 
+	// WorldPainter places a tree at the ground height of its anchor point. 53 of the custom
+	// trees have their anchor at a corner of the schematic, up to 16 blocks from the trunk,
+	// so on slopes the whole tree floated (or sank) by the height difference. Move every
+	// tree's anchor to the centre of its trunk base so the height is taken under the trunk.
+	var WPObject = Packages.org.pepsoft.worldpainter.objects.WPObject;
+	var Point3i = Java.type("javax.vecmath.Point3i");
+	// More or fewer trees in all forests: 1 = as designed, 2 = twice as many.
+	var treeDensityFactor = 2;
+	var anchorTrees = function(layer) {
+		if ( layer === undefined || layer === null ) return 0;
+		var count = 0;
+		if ( layer instanceof Packages.org.pepsoft.worldpainter.layers.CombinedLayer ) {
+			var sub = layer.getLayers();
+			for ( var s = 0; s < sub.size(); s++ ) count += anchorTrees(sub.get(s));
+		} else if ( layer instanceof Packages.org.pepsoft.worldpainter.layers.Bo2Layer ) {
+			// WorldPainter density is "one object per N", so a smaller number means more trees.
+			if ( treeDensityFactor !== 1 ) layer.setDensity(Math.max(1, Math.round(layer.getDensity() / treeDensityFactor)));
+			var objects = layer.getObjectProvider().getAllObjects();
+			for ( var o = 0; o < objects.size(); o++ ) {
+				var obj = objects.get(o), dims = obj.getDimensions(), sumX = 0, sumY = 0, n = 0;
+				for ( var bx = 0; bx < dims.x; bx++ ) for ( var by = 0; by < dims.y; by++ ) {
+					if ( obj.getMask(bx, by, 0) ) { sumX += bx; sumY += by; n++; }
+				}
+				if ( n === 0 ) continue;
+				var oldOffset = obj.getAttribute(WPObject.ATTRIBUTE_OFFSET);
+				var offsetZ = (oldOffset !== null) ? oldOffset.z : 0;
+				var newOffset = new Point3i(-Math.round(sumX / n), -Math.round(sumY / n), offsetZ);
+				if ( oldOffset === null || oldOffset.x !== newOffset.x || oldOffset.y !== newOffset.y ) {
+					obj.setAttribute(WPObject.ATTRIBUTE_OFFSET, newOffset);
+					count++;
+				}
+			}
+		}
+		return count;
+	};
+	var treeLayers = [mixedLayer, acaciaLayer, spruceLayer, deciduousLayer, evergreenLayer, smallTreeEvergreenLayer,
+		(typeof mangroveLayer !== "undefined") ? mangroveLayer : null,
+		(typeof cherryBlossumTreesLayer !== "undefined") ? cherryBlossumTreesLayer : null];
+	var reanchoredTrees = 0;
+	for ( var t = 0; t < treeLayers.length; t++ ) reanchoredTrees += anchorTrees(treeLayers[t]);
+	print("trees re-anchored to their trunk: " + reanchoredTrees + " objects");
+
 	var water1deep = wp.getLayer().fromFile(path+'wpscript/layer/water/water1deep.layer').go();
 	var water2deep = wp.getLayer().fromFile(path+'wpscript/layer/water/water2deep.layer').go();
 	var water3deep = wp.getLayer().fromFile(path+'wpscript/layer/water/water3deep.layer').go();
@@ -842,6 +884,11 @@ if ( true ) {
 		}
 	}
 
+	// WorldPainter puts a "goodies chest" (diamond tools, obsidian, eyes of ender...) at the spawn
+	// point of every exported world. Each tile is its own world with its spawn in the middle, so
+	// every tile got a free chest at its centre. Turn that off.
+	world.setCreateGoodiesChest(false);
+
 	//bug in WorldPainter. The preference for layers are ignored, so remove the frost layer in this script. ??? still a bug in 2.10.10 ???
 	wp.applyLayer(frostLayer)
 		.toWorld(world)
@@ -871,6 +918,16 @@ if ( true ) {
 		var terrain = wp.getTerrain().fromFile(path+'wpscript/terrain/snow_powder_snow.terrain').go();
 		var importedPowderSnowTerrain = wp.installCustomTerrain(terrain).toWorld(world).inSlot(5).go(); //Slot 5 = 51 see Documentation
 	}
+	// "Snowy peaks" terrain for the highest mountains: patches of snow blocks, packed ice and
+	// ice on every face (like vanilla frozen peaks) instead of stone with a snow layer.
+	var MixedMaterial = Java.type("org.pepsoft.worldpainter.MixedMaterial");
+	var MixedMaterialRow = Java.type("org.pepsoft.worldpainter.MixedMaterial$Row");
+	var Material = Java.type("org.pepsoft.minecraft.Material");
+	var snowyPeaksRows = Java.to([
+		new MixedMaterialRow(Material.SNOW_BLOCK, 600, 1.0),
+		new MixedMaterialRow(Material.PACKED_ICE, 300, 1.0),
+		new MixedMaterialRow(Material.ICE, 100, 1.0)], "org.pepsoft.worldpainter.MixedMaterial$Row[]");
+	var snowyPeaksTerrain = wp.installCustomTerrain(new MixedMaterial("Snowy peaks", snowyPeaksRows, -1, 0xE8F4FF, 1.0)).toWorld(world).inSlot(6).go();
 	if ( settingsVanillaPopulation === "False" ) {
 		var grassTerrain = 0;
 	} else {
@@ -1315,6 +1372,12 @@ if ( true ) {
 		
 	var noOceanFilter = wp.createFilter()
 		.exceptOnLayer(oceanLayer)
+		.go();
+
+	// Everywhere except the sea (shallow and deep ocean both have the water level above
+	// the terrain; lakes and rivers are painted as terrain instead). Used for slim ocean.
+	var slimOceanFilter = wp.createFilter()
+		.exceptOnWater()
 		.go();
 
 	var deepOceanFilter = wp.createFilter()
@@ -3905,6 +3968,36 @@ if ( true ) {
 		.fromLevels(0, 254).toTerrain(37) //waterTerrain
 		.go();
 
+
+	// Deserts: satellite colours of many deserts are olive or brown (spinifex on the Australian
+	// dunes, dark gravel plains), so the colour mapping above made them grass. Where the
+	// ecoregion biome is desert, turn those olive/brown "grass" colours (also the darker olives that "Greenest" produces) into sand; in badlands
+	// (the Australian deserts, Namib) into red sand. Bright greens (oases, irrigated fields)
+	// stay grass.
+	var desertGroundImage = wp.getHeightMap().fromFile(path+'image_exports/'+tile+'/'+tile+'_terrain_reduced_colors.png').go();
+	var desertSands = [[BIOME_DESERT, 5], [BIOME_BADLANDS, 6]];
+	for ( var ds = 0; ds < desertSands.length; ds++ ) {
+		var onDesertBiome = wp.createFilter().onlyOnBiome(desertSands[ds][0]).go();
+		wp.applyHeightMap(desertGroundImage)
+			.toWorld(world)
+			.shift(shiftLongitute, shiftLatitude)
+			.withFilter(onDesertBiome)
+			.applyToTerrain()
+			.fromColour(50, 60, 30).toTerrain(desertSands[ds][1])
+			.fromColour(55, 70, 50).toTerrain(desertSands[ds][1])
+			.fromColour(75, 85, 60).toTerrain(desertSands[ds][1])
+			.fromColour(95, 100, 75).toTerrain(desertSands[ds][1])
+			.fromColour(140, 150, 110).toTerrain(desertSands[ds][1])
+			.fromColour(155, 160, 110).toTerrain(desertSands[ds][1])
+			.fromColour(100, 80, 50).toTerrain(desertSands[ds][1])
+			.fromColour(100, 85, 60).toTerrain(desertSands[ds][1])
+			.fromColour(100, 90, 75).toTerrain(desertSands[ds][1])
+			.fromColour(167, 146, 103).toTerrain(desertSands[ds][1])
+			.fromColour(149, 134, 103).toTerrain(desertSands[ds][1])
+			.go();
+	}
+	desertGroundImage = null;
+	print("desert sand applied");
 	print("terrain created");
 }
 
@@ -4069,7 +4162,8 @@ if ( true ) {
 
 	//snow
 	var snowImage = wp.getHeightMap().fromFile(path+'image_exports/'+tile+'/'+tile+'_snow.png').go();
-		
+
+
 	wp.applyHeightMap(snowImage) 
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
@@ -5850,7 +5944,155 @@ if ( true ) {
 	print("roads created");
 }
 
+	//survival wood (sparse bushes with a little wood on open land below the tree line)
+if ( true ) {
+
+	// Open land with no forest (steppe, grassland, plateaus) gets a very light scattering of the
+	// shrub models (small oak bushes with a few wood blocks) so survival players can find some
+	// wood. Nothing above survivalWoodMaxLevel (real tree line), and nothing on water, sand,
+	// snow or ice ground, deserts, badlands, beaches, or where forests or shrubs already are.
+	// Cold mountains above the snow ground level (see snowy mountains) also stay bare, because
+	// WorldPainter does not place plants on snow ground.
+	// Same one-condition-per-filter marker trick as the snowy mountains.
+	var survivalWoodLevel = 1;      // shrub layer intensity, 1 (sparsest) to 15
+	var survivalWoodMaxLevel = 165; // about 3500 m at vertical scale 1:35
+	var woodMarker = wp.getLayer().withName("Annotations").go();
+	var setWoodMarker = function(filter, level) {
+		var op = wp.applyLayer(woodMarker).toWorld(world);
+		if ( filter !== null ) op = op.withFilter(filter);
+		op.toLevel(level).go();
+	};
+	var noWood = [
+		wp.createFilter().aboveLevel(survivalWoodMaxLevel).go(),
+		wp.createFilter().onlyOnTerrain(37).go(), // water
+		wp.createFilter().onlyOnTerrain(5).go(),  // sand
+		wp.createFilter().onlyOnTerrain(6).go(),  // red sand
+		wp.createFilter().onlyOnTerrain(40).go(), // deep snow
+		wp.createFilter().onlyOnTerrain(snowTerrain).go(),
+		wp.createFilter().onlyOnTerrain(iceTerrain).go(),
+		wp.createFilter().onlyOnBiome(BIOME_DESERT).go(),
+		wp.createFilter().onlyOnBiome(BIOME_BADLANDS).go(),
+		wp.createFilter().onlyOnBiome(BIOME_WOODED_BADLANDS).go(),
+		wp.createFilter().onlyOnBiome(BIOME_ERODED_BADLANDS).go(),
+		wp.createFilter().onlyOnBiome(BIOME_BEACH).go(),
+		wp.createFilter().onlyOnBiome(BIOME_STONY_SHORE).go(),
+		wp.createFilter().onlyOnLayer(shrubsLayer).go(),
+		wp.createFilter().onlyOnLayer(shrubsLayerWithCactuses).go()];
+	for ( var tl = 0; tl < treeLayers.length; tl++ ) {
+		if ( treeLayers[tl] !== null ) noWood.push(wp.createFilter().onlyOnLayer(treeLayers[tl]).go());
+	}
+	var onWoodMarker = wp.createFilter().onlyOnLayer(woodMarker).go();
+
+	setWoodMarker(null, 1);
+	for ( var nw = 0; nw < noWood.length; nw++ ) setWoodMarker(noWood[nw], 0);
+	wp.applyLayer(shrubsLayer)
+		.toWorld(world)
+		.withFilter(onWoodMarker)
+		.toLevel(survivalWoodLevel)
+		.go();
+	setWoodMarker(null, 0);
+	print("survival wood applied (shrubs level " + survivalWoodLevel + ")");
+}
+
+	//snowy mountains (after vegetation, landuse and roads so forests still grow on snowy slopes)
+if ( true ) {
+
+	// Snowy mountains:
+	//  - above snowGroundLevel on snowy/frosty land: the ground becomes snow blocks (Deep Snow
+	//    terrain, id 40) instead of stone, dirt or sand under the snow layer;
+	//  - above snowPeakLevel on snowy/frosty land, and above glacierPeakLevel everywhere:
+	//    patches of snow blocks, packed ice and ice on every face (like vanilla frozen peaks).
+	// Forests and water are left alone (WorldPainter won't place trees on snow ground).
+	// WorldPainter filters allow only one condition each, so the combination is built up step
+	// by step in the Annotations layer (only shown in WorldPainter, never exported) and the
+	// terrain is then applied wherever that marker is set.
+	var snowGroundLevel = 110;  // about 1600 m at vertical scale 1:35
+	var snowPeakLevel = 160;    // about 3350 m
+	var glacierPeakLevel = 200; // about 4750 m
+	var snowCoverImage = wp.getHeightMap().fromFile(path+'image_exports/'+tile+'/'+tile+'_snow.png').go();
+	var marker = wp.getLayer().withName("Annotations").go();
+
+	var setMarker = function(filter, level) {
+		var op = wp.applyLayer(marker).toWorld(world);
+		if ( filter !== null ) op = op.withFilter(filter);
+		op.toLevel(level).go();
+	};
+	var onFrost = wp.createFilter().onlyOnLayer(frostLayer).go();
+	var onGlacierHeight = wp.createFilter().aboveLevel(glacierPeakLevel).go();
+	var belowSnowGround = wp.createFilter().belowLevel(snowGroundLevel).go();
+	var belowSnowPeak = wp.createFilter().belowLevel(snowPeakLevel).go();
+	var onWater = wp.createFilter().onlyOnTerrain(37).go();
+	var onMarker = wp.createFilter().onlyOnLayer(marker).go();
+	var onForest = [];
+	for ( var fl = 0; fl < treeLayers.length; fl++ ) {
+		if ( treeLayers[fl] !== null ) onForest.push(wp.createFilter().onlyOnLayer(treeLayers[fl]).go());
+	}
+	var unmarkWaterAndForest = function() {
+		setMarker(onWater, 0);
+		for ( var f = 0; f < onForest.length; f++ ) setMarker(onForest[f], 0);
+	};
+
+	// 1. candidates: frosty land, land with any snow cover, and everything above glacier height
+	setMarker(null, 0);
+	setMarker(onFrost, 1);
+	wp.applyHeightMap(snowCoverImage)
+		.toWorld(world)
+		.shift(shiftLongitute, shiftLatitude)
+		.applyToLayer(marker)
+		.fromLevels(1, 255).toLevel(1)
+		.go();
+	setMarker(onGlacierHeight, 1);
+	// 2. not below the snow ground level, not on water, not in forests
+	setMarker(belowSnowGround, 0);
+	unmarkWaterAndForest();
+	// 3. snow-block ground
+	wp.applyHeightMap(snowCoverImage)
+		.toWorld(world)
+		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(onMarker)
+		.applyToTerrain()
+		.fromLevels(0, 255).toTerrain(40)
+		.go();
+	// 4. snow and ice on the peaks: same candidates, but only from snowPeakLevel up
+	setMarker(belowSnowPeak, 0);
+	wp.applyHeightMap(snowCoverImage)
+		.toWorld(world)
+		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(onMarker)
+		.applyToTerrain()
+		.fromLevels(0, 255).toTerrain(snowyPeaksTerrain)
+		.go();
+	setMarker(null, 0);
+	print("snowy mountains applied (peaks terrain " + snowyPeaksTerrain + ")");
+}
+
 	//vanilla ores 
+	// Rarer diamond, iron and redstone: set the pocket frequency inside these layers
+	// directly ("Amount of ores" may already be at its lowest level). 1 is the minimum.
+	//   deepslate diamond 2 -> 1, redstone 5 -> 1 (to match deepslate redstone),
+	//   iron 8 -> 4, deepslate iron 10 -> 5, emerald 2 -> 1, deepslate emerald 4 -> 1,
+	//   deepslate lapis 2 -> 1, lapis 2 -> 1, copper and deepslate copper 10 -> 4.
+	//   Diamond, deepslate redstone and both golds are already 1.
+	var ifDefined = function(layer) { return (typeof layer !== "undefined") ? layer : null; };
+	var oreFrequencies = [
+		[ifDefined(deepslateDiamondOreLayer), 1],
+		[redstoneOreLayer, 1],
+		[ironOreLayer, 4],
+		[ifDefined(deepslateIronOreLayer), 5],
+		[emeraldOreLayer, 1],
+		[ifDefined(deepslateEmeraldOreLayer), 1],
+		[lapisOreLayer, 1],
+		[ifDefined(deepslateLapisOreLayer), 1],
+		[ifDefined(copperOreLayer), 4],
+		[ifDefined(deepslateCopperOreLayer), 4]];
+	for ( var r = 0; r < oreFrequencies.length; r++ ) {
+		var oreLayer = oreFrequencies[r][0];
+		if ( oreLayer !== null && oreLayer instanceof Packages.org.pepsoft.worldpainter.layers.pockets.UndergroundPocketsLayer ) {
+			var oldFrequency = oreLayer.getFrequency();
+			oreLayer.setFrequency(oreFrequencies[r][1]);
+			print("ore layer " + oreLayer.getName() + " frequency " + oldFrequency + " -> " + oreLayer.getFrequency());
+		}
+	}
 if ( settingsVanillaPopulation === "False" ) {
 	
 	wp.applyLayer(coalOreLayer)
@@ -5904,66 +6146,77 @@ if ( settingsVanillaPopulation === "False" ) {
 	wp.applyLayer(clayDepositLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(oreModifier)
 		.go();
 
 	wp.applyLayer(dirtDepositLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(oreModifier)
 		.go();
 
 	wp.applyLayer(gravelDepositLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(oreModifier)
 		.go();
 		
 	wp.applyLayer(undergroundLavaLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(oreModifier)
 		.go();
 		
 	wp.applyLayer(redSandDepositLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(oreModifier)
 		.go();
 		
 	wp.applyLayer(sandDepositLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(oreModifier)
 		.go();
 		
 	wp.applyLayer(undergroundWaterLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(oreModifier)
 		.go();
 
 	wp.applyLayer(undergroundLavaLakeLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(oreModifier)
 		.go();
 		
 	wp.applyLayer(andesiteDepositLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(oreModifier)
 		.go();
 		
 	wp.applyLayer(dioriteDepositLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(oreModifier)
 		.go();
 		
 	wp.applyLayer(graniteDepositLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(oreModifier)
 		.go();
 	
@@ -5973,12 +6226,14 @@ if ( settingsVanillaPopulation === "False" ) {
 		wp.applyLayer(tuffDepositLayer)
 			.toWorld(world)
 			.shift(shiftLongitute, shiftLatitude)
+			.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 			.toLevel(oreModifier)
 			.go();
 			
 		wp.applyLayer(dripstoneDepositLayer)
 			.toWorld(world)
 			.shift(shiftLongitute, shiftLatitude)
+			.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 			.toLevel(oreModifier)
 			.go();
 			
@@ -6085,22 +6340,41 @@ if ( settingsVanillaPopulation === "False" ) {
 	
 	//caves
 if ( true ) {
-	
+
+	// Keep caves, caverns and chasms underground. With surface breaking on, they cut
+	// openings into steep mountainsides, which looks random at high altitude.
+	var caveDimension = world.getDimension(0);
+	var caveLayerSettings = [
+		[cavesLayer, Java.type("org.pepsoft.worldpainter.layers.exporters.CavesExporter$CavesSettings")],
+		[cavernsLayer, Java.type("org.pepsoft.worldpainter.layers.exporters.CavernsExporter$CavernsSettings")],
+		[chasmsLayer, Java.type("org.pepsoft.worldpainter.layers.exporters.ChasmsExporter$ChasmsSettings")]];
+	for ( var c = 0; c < caveLayerSettings.length; c++ ) {
+		var caveLayer = caveLayerSettings[c][0];
+		var caveSettings = caveDimension.getLayerSettings(caveLayer);
+		if ( caveSettings === null ) caveSettings = new caveLayerSettings[c][1]();
+		caveSettings.setSurfaceBreaking(false);
+		caveDimension.setLayerSettings(caveLayer, caveSettings);
+	}
+	print("caves set to not break the surface");
+
 	wp.applyLayer(cavesLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(7)
 		.go();
 
 	wp.applyLayer(cavernsLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(7)
 		.go();
 
 	wp.applyLayer(chasmsLayer)
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
+		.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 		.toLevel(7)
 		.go();
 		
@@ -6109,6 +6383,7 @@ if ( true ) {
 		wp.applyLayer(amethystGeodesLayer)
 			.toWorld(world)
 			.shift(shiftLongitute, shiftLatitude)
+			.withFilter(slimOceanFilter) // slim ocean: keep the sea floor underground plain
 			.toLevel(oreModifier)
 			.go();
 		
