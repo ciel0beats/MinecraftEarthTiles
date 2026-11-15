@@ -28,3 +28,15 @@ java -cp "C:\Program Files\WorldPainter\lib\*" LakeMerge.java <newRegionDir> <se
 
 It prints, per file, how many chunks were missing, how many were lakes, how many were replaced
 and how many were kept from the server. Always back up the server's files before uploading.
+
+# SpillCheck
+
+Counts lake and river water that can spill out of its banks: surface water next to a dry column
+whose surface is lower, so the water flows sideways and floods the land around it. Use it to
+compare region files before and after a script change.
+
+```
+java -cp "C:\Program Files\WorldPainter\lib\*" SpillCheck.java <region.mca> [more.mca ...]
+```
+
+It prints, per file, the number of surface water columns and how many of them can spill.

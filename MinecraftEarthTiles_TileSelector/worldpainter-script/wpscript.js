@@ -3535,36 +3535,37 @@ if ( true ) {
 		wp.applyHeightMap(ecoRegionImage)
 			.toWorld(world)
 			.shift(shiftLongitute, shiftLatitude)
-			.applyToLayer(swampTerrain)
-			.fromColour(108,222,214).toLevel(1) //Borneo peat swamp forests
-			.fromColour(224,60,98).toLevel(1) //Chao Phraya freshwater swamp forests
-			.fromColour(212,62,24).toLevel(1) //Cuban wetlands
-			.fromColour(235,227,108).toLevel(1) //Eastern Congolian swamp forests
-			.fromColour(227,133,32).toLevel(1) //Everglades
-			.fromColour(45,232,132).toLevel(1) //Guayaquil flooded grasslands
-			.fromColour(19,231,178).toLevel(1) //Iquitos varzeá
-			.fromColour(82,169,220).toLevel(1) //Lake Chad flooded savanna
-			.fromColour(174,37,208).toLevel(1) //Monte Alegre varzeá
-			.fromColour(149,110,208).toLevel(1) //Nenjiang River grassland
-			.fromColour(213,66,208).toLevel(1) //Niger Delta swamp forests
-			.fromColour(47,224,221).toLevel(1) //Northern New Guinea lowland rain and freshwater swamp forests
-			.fromColour(146,211,60).toLevel(1) //Orinoco wetlands
-			.fromColour(235,109,138).toLevel(1) //Pantanal
-			.fromColour(108,230,137).toLevel(1) //Paraná flooded savanna
-			.fromColour(207,123,104).toLevel(1) //Peninsular Malaysian peat swamp forests
-			.fromColour(35,205,61).toLevel(1) //Purus varzeá
-			.fromColour(60,174,215).toLevel(1) //South Florida rocklands
-			.fromColour(220,157,109).toLevel(1) //Southwest Borneo freshwater swamp forests
-			.fromColour(200,27,105).toLevel(1) //Suiphun-Khanka meadows and forest meadows
-			.fromColour(165,63,202).toLevel(1) //Sumatran freshwater swamp forests
-			.fromColour(229,32,95).toLevel(1) //Sumatran peat swamp forests
-			.fromColour(238,210,100).toLevel(1) //Tigris-Euphrates alluvial salt marsh
-			.fromColour(98,214,200).toLevel(1) //Tonle Sap-Mekong peat swamp forests
-			.fromColour(148,208,79).toLevel(1) //Trans-Baikal Bald Mountain tundra
-			.fromColour(200,92,80).toLevel(1) //Western Congolian swamp forests
-			.fromColour(94,177,213).toLevel(1) //Zambezian coastal flooded savanna
-			.fromColour(219,94,70).toLevel(1) //Zambezian flooded grasslands
-			.fromColour(17,234,187).toLevel(1) //Zambezian halophytics
+			.withFilter(noWaterFilter)
+			.applyToTerrain() // wetlands: mud ground; the old swamp layer put loose water blocks on slopes that spilled everywhere
+			.fromColour(108,222,214).toTerrain(mudTerrain) //Borneo peat swamp forests
+			.fromColour(224,60,98).toTerrain(mudTerrain) //Chao Phraya freshwater swamp forests
+			.fromColour(212,62,24).toTerrain(mudTerrain) //Cuban wetlands
+			.fromColour(235,227,108).toTerrain(mudTerrain) //Eastern Congolian swamp forests
+			.fromColour(227,133,32).toTerrain(mudTerrain) //Everglades
+			.fromColour(45,232,132).toTerrain(mudTerrain) //Guayaquil flooded grasslands
+			.fromColour(19,231,178).toTerrain(mudTerrain) //Iquitos varzeá
+			.fromColour(82,169,220).toTerrain(mudTerrain) //Lake Chad flooded savanna
+			.fromColour(174,37,208).toTerrain(mudTerrain) //Monte Alegre varzeá
+			.fromColour(149,110,208).toTerrain(mudTerrain) //Nenjiang River grassland
+			.fromColour(213,66,208).toTerrain(mudTerrain) //Niger Delta swamp forests
+			.fromColour(47,224,221).toTerrain(mudTerrain) //Northern New Guinea lowland rain and freshwater swamp forests
+			.fromColour(146,211,60).toTerrain(mudTerrain) //Orinoco wetlands
+			.fromColour(235,109,138).toTerrain(mudTerrain) //Pantanal
+			.fromColour(108,230,137).toTerrain(mudTerrain) //Paraná flooded savanna
+			.fromColour(207,123,104).toTerrain(mudTerrain) //Peninsular Malaysian peat swamp forests
+			.fromColour(35,205,61).toTerrain(mudTerrain) //Purus varzeá
+			.fromColour(60,174,215).toTerrain(mudTerrain) //South Florida rocklands
+			.fromColour(220,157,109).toTerrain(mudTerrain) //Southwest Borneo freshwater swamp forests
+			.fromColour(200,27,105).toTerrain(mudTerrain) //Suiphun-Khanka meadows and forest meadows
+			.fromColour(165,63,202).toTerrain(mudTerrain) //Sumatran freshwater swamp forests
+			.fromColour(229,32,95).toTerrain(mudTerrain) //Sumatran peat swamp forests
+			.fromColour(238,210,100).toTerrain(mudTerrain) //Tigris-Euphrates alluvial salt marsh
+			.fromColour(98,214,200).toTerrain(mudTerrain) //Tonle Sap-Mekong peat swamp forests
+			.fromColour(148,208,79).toTerrain(mudTerrain) //Trans-Baikal Bald Mountain tundra
+			.fromColour(200,92,80).toTerrain(mudTerrain) //Western Congolian swamp forests
+			.fromColour(94,177,213).toTerrain(mudTerrain) //Zambezian coastal flooded savanna
+			.fromColour(219,94,70).toTerrain(mudTerrain) //Zambezian flooded grasslands
+			.fromColour(17,234,187).toTerrain(mudTerrain) //Zambezian halophytics
 			.go();
 			
 		wp.applyHeightMap(ecoRegionImage)
@@ -4038,16 +4039,58 @@ if ( true ) {
 			.applyToLayer(biomesLayer)
 			.fromLevels(0, 230).toLevel(BIOME_RIVER)
 			.go();
-		
+
+		// Keep lake and river water inside its banks. The water above is painted as terrain on
+		// top of the (uneven) heightmap, so wherever a bank column is lower than the water next
+		// to it, the water spills out and floods the land around it. Lower every water column
+		// (on land, not the sea) to the lowest of its non-water neighbours, so no bank is ever
+		// below the water surface.
+		var waterMaskImages = [
+			javax.imageio.ImageIO.read(new java.io.File(path+'image_exports/'+tile+'/'+tile+'_water.png')),
+			javax.imageio.ImageIO.read(new java.io.File(path+'image_exports/'+tile+'/'+tile+'_river.png'))];
+		var maskW = waterMaskImages[0].getWidth(), maskH = waterMaskImages[0].getHeight();
+		var isWaterPixel = function(x, y) {
+			if ( x < 0 || y < 0 || x >= maskW || y >= maskH ) return false;
+			for ( var i = 0; i < waterMaskImages.length; i++ ) {
+				if ( (waterMaskImages[i].getRGB(x, y) & 0xff) <= 230 ) return true;
+			}
+			return false;
+		};
+		var waterDimension = world.getDimension(0);
+		var landWaterLevel = ( settingsMapVersion === "1-18" || settingsMapVersion === "1-19" || settingsMapVersion === "1-20" ) ? settingsLowerBuildLimit + 1 : 1;
+		var loweredWater = 0;
+		for ( var wx = 0; wx < maskW; wx++ ) {
+			for ( var wy = 0; wy < maskH; wy++ ) {
+				if ( !isWaterPixel(wx, wy) ) continue;
+				var ax = wx + shiftLongitute, ay = wy + shiftLatitude;
+				if ( waterDimension.getWaterLevelAt(ax, ay) > landWaterLevel ) continue; // sea
+				var h = waterDimension.getIntHeightAt(ax, ay);
+				var lowest = h;
+				for ( var dx = -1; dx <= 1; dx++ ) {
+					for ( var dy = -1; dy <= 1; dy++ ) {
+						if ( (dx === 0 && dy === 0) || isWaterPixel(wx + dx, wy + dy) ) continue;
+						var nh = waterDimension.getIntHeightAt(ax + dx, ay + dy);
+						if ( nh !== -1 && nh < lowest ) lowest = nh;
+					}
+				}
+				if ( lowest < h ) {
+					waterDimension.setHeightAt(ax, ay, lowest);
+					loweredWater++;
+				}
+			}
+		}
+		waterMaskImages = null;
+		print("water kept in its banks (" + loweredWater + " water columns lowered)");
+
 	}
 
 	//swamp
 	wp.applyHeightMap(wetImage) 
 		.toWorld(world)
 		.shift(shiftLongitute, shiftLatitude)
-		.applyToLayer(swampTerrain)
+		.applyToTerrain() // wetlands: mud ground instead of loose water blocks (they spilled on slopes)
 		.withFilter(noWaterFilter)
-		.fromColour(0, 127, 127).toLevel(1)
+		.fromColour(0, 127, 127).toTerrain(mudTerrain)
 		.go();
 		
 	if ( settingsVanillaPopulation === "False" ) {
